@@ -1,0 +1,34 @@
+name: Update image manifest
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"        # every Monday, 13:00 UTC
+  push:
+    branches: [main]
+    paths: ["ITT-ProductPhotos/**"]   # also refresh as soon as images change
+  workflow_dispatch:             # "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Rebuild manifest.json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: lets Claude describe new images
+        run: python scripts/build_manifest.py
+      - name: Commit if changed
+        run: |
+          if git diff --quiet manifest.json; then echo "No changes."; exit 0; fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Update manifest.json ($(date -u +%Y-%m-%d))"
+          git push
